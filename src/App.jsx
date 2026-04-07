@@ -126,10 +126,110 @@ function createAudioController() {
   };
 }
 
+function SectionEyebrow({ children }) {
+  return <p className="eyebrow">{children}</p>;
+}
+
+function SectionHeader({ eyebrow, title, description, align = 'default' }) {
+  return (
+    <div className={`section-header section-header-${align}`}>
+      <div className="section-header-copy">
+        <SectionEyebrow>{eyebrow}</SectionEyebrow>
+        <h2>{title}</h2>
+      </div>
+      {description ? <p className="section-header-description">{description}</p> : null}
+    </div>
+  );
+}
+
+function PageHeader({ currentStage, isObservation }) {
+  return (
+    <header className="page-header">
+      <div className="page-header-copy">
+        <SectionEyebrow>BDE Protocol</SectionEyebrow>
+        <h1>BDE hyperventilation task</h1>
+        <p className="page-intro">
+          A focused breathing session with guided hyperventilation, minute cues, and a
+          quiet observation period before completion.
+        </p>
+      </div>
+      <div className="page-header-meta">
+        <div className={`pill pill-status ${isObservation ? 'is-observation' : ''}`}>
+          {currentStage}
+        </div>
+        <p className="page-meta-note">6-minute structured protocol</p>
+      </div>
+    </header>
+  );
+}
+
+function MetricCard({ label, value, tone = 'default' }) {
+  return (
+    <article className={`surface-card surface-card-soft metric-card metric-card-${tone}`}>
+      <span className="meta-label">{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function ProgressBar({ label, value, meta, percentage, variant = 'default' }) {
+  return (
+    <div className={`surface-card surface-card-soft progress-panel progress-panel-${variant}`}>
+      <div className="progress-panel-header">
+        <div>
+          <span className="meta-label">{label}</span>
+          <strong>{value}</strong>
+        </div>
+        <span className="progress-meta">{meta}</span>
+      </div>
+      <div className="progress-track" aria-hidden="true">
+        <div className="progress-fill" style={{ width: `${percentage}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function Button({ children, variant = 'secondary', ...props }) {
+  return (
+    <button className={`button button-${variant}`} type="button" {...props}>
+      {children}
+    </button>
+  );
+}
+
+function ControlGroup({
+  status,
+  onStart,
+  onPause,
+  onResume,
+  onReset,
+  startDisabled,
+  pauseDisabled,
+  resumeDisabled,
+  resetDisabled,
+}) {
+  return (
+    <div className="controls">
+      <Button variant="primary" onClick={onStart} disabled={startDisabled}>
+        {status === 'complete' ? 'Restart session' : 'Start session'}
+      </Button>
+      <Button onClick={onPause} disabled={pauseDisabled}>
+        Pause
+      </Button>
+      <Button onClick={onResume} disabled={resumeDisabled}>
+        Resume
+      </Button>
+      <Button variant="ghost" onClick={onReset} disabled={resetDisabled}>
+        Reset
+      </Button>
+    </div>
+  );
+}
+
 function NumberField({ label, suffix, min, max, step, value, onChange }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span className="meta-label field-label">{label}</span>
       <div className="field-input">
         <input
           type="number"
@@ -139,9 +239,155 @@ function NumberField({ label, suffix, min, max, step, value, onChange }) {
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
         />
-        <span>{suffix}</span>
+        {suffix ? <span className="field-suffix">{suffix}</span> : null}
       </div>
     </label>
+  );
+}
+
+function SoundSettingCard({ soundKey, label, settings, onUpdate }) {
+  const timeLabel =
+    soundKey === 'end' ? '6:00' : soundKey === 'minute' ? '1:00-4:00' : '0:00-4:00';
+
+  return (
+    <article className="surface-card surface-card-soft setting-card">
+      <div className="setting-card-header">
+        <div>
+          <h3>{label}</h3>
+          <p className="setting-card-subtitle">Applied during {timeLabel}</p>
+        </div>
+        <span className="pill pill-meta">{soundKey}</span>
+      </div>
+      <NumberField
+        label="Frequency"
+        suffix="Hz"
+        min={50}
+        max={2000}
+        step={1}
+        value={settings[soundKey].frequency}
+        onChange={(value) => onUpdate(soundKey, 'frequency', value)}
+      />
+      <NumberField
+        label="Volume"
+        suffix=""
+        min={0}
+        max={1}
+        step={0.01}
+        value={settings[soundKey].volume}
+        onChange={(value) => onUpdate(soundKey, 'volume', value)}
+      />
+    </article>
+  );
+}
+
+function SettingsPanel({ settings, onUpdate }) {
+  return (
+    <section className="panel panel-secondary">
+      <SectionHeader
+        eyebrow="Tone Controls"
+        title="Session sound profile"
+        description="Adjust cue frequency and loudness. Changes apply immediately to future sounds."
+      />
+
+      <div className="settings-grid">
+        {[
+          ['inhale', 'In cue'],
+          ['exhale', 'Out cue'],
+          ['minute', 'Minute beep'],
+          ['end', 'Final tone'],
+        ].map(([soundKey, label]) => (
+          <SoundSettingCard
+            key={soundKey}
+            soundKey={soundKey}
+            label={label}
+            settings={settings}
+            onUpdate={onUpdate}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SessionOverviewCard({
+  currentStage,
+  guidedRemainingMs,
+  guidedPct,
+  remainingMs,
+  elapsedMs,
+  completionPct,
+  isObservation,
+  status,
+  onStart,
+  onPause,
+  onResume,
+  onReset,
+  startDisabled,
+  pauseDisabled,
+  resumeDisabled,
+  resetDisabled,
+}) {
+  return (
+    <section className="panel panel-primary">
+      <div className="session-overview">
+        <SectionHeader
+          eyebrow="Session Overview"
+          title="Structured breathing timeline"
+          description="Four minutes of guided hyperventilation are followed by two minutes of silent observation before the completion tone."
+        />
+        <div className="surface-card surface-card-accent session-state">
+          <span className="meta-label session-state-label">Current stage</span>
+          <strong>{currentStage}</strong>
+          <p>{isObservation ? 'Cue beeps paused' : 'Guided cues active'}</p>
+        </div>
+      </div>
+
+      <div className="timeline-grid">
+        <ProgressBar
+          label="Guided breathing"
+          value={`${formatClock(guidedRemainingMs, GUIDED_DURATION_MS, 'ceil')} left`}
+          meta="0:00-4:00"
+          percentage={guidedPct}
+          variant="guided"
+        />
+        <div className="surface-card surface-card-soft timeline-note">
+          <span className="meta-label">Silent observation</span>
+          <strong>4:00-6:00</strong>
+          <p>No breathing cues during the final two minutes.</p>
+        </div>
+      </div>
+
+      <div className="metrics-grid">
+        <MetricCard
+          label="Remaining"
+          value={formatClock(remainingMs, TOTAL_DURATION_MS, 'ceil')}
+        />
+        <MetricCard
+          label="Elapsed"
+          value={formatClock(elapsedMs, TOTAL_DURATION_MS, 'floor')}
+        />
+        <MetricCard label="Task stage" value={currentStage} tone="accent" />
+      </div>
+
+      <ProgressBar
+        label="Overall progress"
+        value={`${Math.round(completionPct)}% complete`}
+        meta="6-minute session"
+        percentage={completionPct}
+      />
+
+      <ControlGroup
+        status={status}
+        onStart={onStart}
+        onPause={onPause}
+        onResume={onResume}
+        onReset={onReset}
+        startDisabled={startDisabled}
+        pauseDisabled={pauseDisabled}
+        resumeDisabled={resumeDisabled}
+        resetDisabled={resetDisabled}
+      />
+    </section>
   );
 }
 
@@ -307,123 +553,29 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero-card">
-        <div className="hero-top">
-          <div>
-            <p className="eyebrow">BDE Protocol</p>
-            <h1>BDE hyperventilation task</h1>
-          </div>
-          <div className={`stage-pill ${isObservation ? 'observation' : ''}`}>
-            {currentStage}
-          </div>
-        </div>
-
-        <p className="intro">
-          Four minutes of guided hyperventilation are followed by two minutes of silent
-          observation before the final completion tone.
-        </p>
-
-        <div className="timeline-card">
-          <div className="timeline-row">
-            <div>
-              <span className="timeline-label">Guided breathing</span>
-              <strong>{formatClock(guidedRemainingMs, GUIDED_DURATION_MS, 'ceil')} left</strong>
-            </div>
-            <span className="timeline-tag">0:00-4:00</span>
-          </div>
-          <div className="timeline-row">
-            <div>
-              <span className="timeline-label">Silent observation</span>
-              <strong>4:00-6:00</strong>
-            </div>
-            <span className="timeline-tag muted">No cue beeps</span>
-          </div>
-          <div className="guided-track" aria-hidden="true">
-            <div className="guided-fill" style={{ width: `${guidedPct}%` }} />
-          </div>
-        </div>
-
-        <div className="status-grid">
-          <div className="status-panel">
-            <span>Remaining</span>
-            <strong>{formatClock(remainingMs, TOTAL_DURATION_MS, 'ceil')}</strong>
-          </div>
-          <div className="status-panel">
-            <span>Elapsed</span>
-            <strong>{formatClock(elapsedMs, TOTAL_DURATION_MS, 'floor')}</strong>
-          </div>
-          <div className="status-panel accent">
-            <span>Task stage</span>
-            <strong>{currentStage}</strong>
-          </div>
-        </div>
-
-        <div className="progress-track" aria-hidden="true">
-          <div className="progress-fill" style={{ width: `${completionPct}%` }} />
-        </div>
-
-        <div className="controls">
-          <button type="button" onClick={handleStart} disabled={startDisabled}>
-            {status === 'complete' ? 'Restart' : 'Start'}
-          </button>
-          <button type="button" onClick={handlePause} disabled={pauseDisabled}>
-            Pause
-          </button>
-          <button type="button" onClick={handleResume} disabled={resumeDisabled}>
-            Resume
-          </button>
-          <button type="button" onClick={handleReset} disabled={resetDisabled}>
-            Reset
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Tone Controls</p>
-            <h2>Fine-tune the cue profile</h2>
-          </div>
-          <p className="helper">
-            Adjust frequency and loudness for breathing cues, minute markers, and the
-            final tone. New values apply immediately to future sounds.
-          </p>
-        </div>
-
-        <div className="sound-grid">
-          {[
-            ['inhale', 'In cue'],
-            ['exhale', 'Out cue'],
-            ['minute', 'Minute beep'],
-            ['end', 'Final tone'],
-          ].map(([soundKey, label]) => (
-            <article className="sound-card" key={soundKey}>
-              <div className="sound-card-header">
-                <h3>{label}</h3>
-                <span>{soundKey === 'end' ? '6:00' : soundKey === 'minute' ? '1:00-4:00' : '0:00-4:00'}</span>
-              </div>
-              <NumberField
-                label="Frequency"
-                suffix="Hz"
-                min={50}
-                max={2000}
-                step={1}
-                value={settings[soundKey].frequency}
-                onChange={(value) => updateSoundSetting(soundKey, 'frequency', value)}
-              />
-              <NumberField
-                label="Volume"
-                suffix=""
-                min={0}
-                max={1}
-                step={0.01}
-                value={settings[soundKey].volume}
-                onChange={(value) => updateSoundSetting(soundKey, 'volume', value)}
-              />
-            </article>
-          ))}
-        </div>
-      </section>
+      <div className="app-background" aria-hidden="true" />
+      <div className="app-content">
+        <PageHeader currentStage={currentStage} isObservation={isObservation} />
+        <SessionOverviewCard
+          currentStage={currentStage}
+          guidedRemainingMs={guidedRemainingMs}
+          guidedPct={guidedPct}
+          remainingMs={remainingMs}
+          elapsedMs={elapsedMs}
+          completionPct={completionPct}
+          isObservation={isObservation}
+          status={status}
+          onStart={handleStart}
+          onPause={handlePause}
+          onResume={handleResume}
+          onReset={handleReset}
+          startDisabled={startDisabled}
+          pauseDisabled={pauseDisabled}
+          resumeDisabled={resumeDisabled}
+          resetDisabled={resetDisabled}
+        />
+        <SettingsPanel settings={settings} onUpdate={updateSoundSetting} />
+      </div>
     </main>
   );
 }
