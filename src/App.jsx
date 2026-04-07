@@ -8,10 +8,10 @@ const MINUTE_BEEP_DURATION_MS = 140;
 const MINUTE_BEEP_GAP_MS = 180;
 const END_TONE_DURATION_MS = 700;
 const DEFAULT_SETTINGS = {
-  inhale: { frequency: 520, volume: 0.22, durationMs: 180 },
-  exhale: { frequency: 360, volume: 0.2, durationMs: 180 },
-  minute: { frequency: 880, volume: 0.28, durationMs: 140 },
-  end: { frequency: 660, volume: 0.32, durationMs: END_TONE_DURATION_MS },
+  inhale: { frequency: 580, volume: 0.99, durationMs: 180 },
+  exhale: { frequency: 360, volume: 0.99, durationMs: 180 },
+  minute: { frequency: 2000, volume: 0.99, durationMs: 140 },
+  end: { frequency: 2000, volume: 0.99, durationMs: END_TONE_DURATION_MS },
 };
 
 function clamp(value, min, max) {
