@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const TOTAL_DURATION_MS = 4 * 60 * 1000;
+const GUIDED_DURATION_MS = 4 * 60 * 1000;
+const TOTAL_DURATION_MS = 6 * 60 * 1000;
 const PHASE_DURATION_MS = 1500;
 const MINUTE_MS = 60 * 1000;
 const MINUTE_BEEP_DURATION_MS = 140;
 const MINUTE_BEEP_GAP_MS = 180;
-const END_TONE_DELAY_AT_COMPLETION_MS = 4 * (MINUTE_BEEP_DURATION_MS + MINUTE_BEEP_GAP_MS);
+const END_TONE_DURATION_MS = 700;
 const DEFAULT_SETTINGS = {
   inhale: { frequency: 520, volume: 0.22, durationMs: 180 },
   exhale: { frequency: 360, volume: 0.2, durationMs: 180 },
   minute: { frequency: 880, volume: 0.28, durationMs: 140 },
-  end: { frequency: 660, volume: 0.32, durationMs: 700 },
+  end: { frequency: 660, volume: 0.32, durationMs: END_TONE_DURATION_MS },
 };
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function formatClock(ms, rounding = 'floor') {
-  const safeMs = clamp(ms, 0, TOTAL_DURATION_MS);
+function formatClock(ms, maxMs = TOTAL_DURATION_MS, rounding = 'floor') {
+  const safeMs = clamp(ms, 0, maxMs);
   const totalSeconds =
     rounding === 'ceil' ? Math.ceil(safeMs / 1000) : Math.floor(safeMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -26,8 +27,20 @@ function formatClock(ms, rounding = 'floor') {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-function getPhase(elapsedMs) {
+function getGuidedPhase(elapsedMs) {
   return Math.floor(elapsedMs / PHASE_DURATION_MS) % 2 === 0 ? 'In' : 'Out';
+}
+
+function getTaskStage(elapsedMs, status) {
+  if (status === 'complete') {
+    return 'Done';
+  }
+
+  if (elapsedMs >= GUIDED_DURATION_MS) {
+    return 'Observation';
+  }
+
+  return getGuidedPhase(elapsedMs);
 }
 
 function createAudioController() {
@@ -58,7 +71,7 @@ function createAudioController() {
       try {
         oscillator.stop();
       } catch {
-        // Ignore repeated stop attempts when resetting quickly.
+        // Ignore repeated stop attempts while stopping scheduled tones.
       }
       oscillator.disconnect();
       gainNode.disconnect();
@@ -106,8 +119,8 @@ function createAudioController() {
         });
       }
     },
-    playEnd(settings, delayMs = 0) {
-      playTone({ ...settings.end, delayMs });
+    playEnd(settings) {
+      playTone(settings.end);
     },
     stopAll,
   };
@@ -147,9 +160,12 @@ export default function App() {
     audioRef.current = createAudioController();
   }
 
-  const currentPhase = useMemo(() => getPhase(elapsedMs), [elapsedMs]);
+  const currentStage = useMemo(() => getTaskStage(elapsedMs, status), [elapsedMs, status]);
   const remainingMs = TOTAL_DURATION_MS - elapsedMs;
+  const guidedRemainingMs = Math.max(GUIDED_DURATION_MS - elapsedMs, 0);
   const completionPct = clamp((elapsedMs / TOTAL_DURATION_MS) * 100, 0, 100);
+  const guidedPct = clamp((elapsedMs / GUIDED_DURATION_MS) * 100, 0, 100);
+  const isObservation = elapsedMs >= GUIDED_DURATION_MS && status !== 'complete';
 
   useEffect(() => {
     return () => {
@@ -174,35 +190,33 @@ export default function App() {
         TOTAL_DURATION_MS,
         baseElapsedRef.current + (now - anchorTimeRef.current),
       );
-
       const previousElapsed = lastElapsedRef.current;
 
       for (
         let boundary = PHASE_DURATION_MS;
-        boundary <= nextElapsed && boundary <= TOTAL_DURATION_MS;
+        boundary <= nextElapsed && boundary <= GUIDED_DURATION_MS;
         boundary += PHASE_DURATION_MS
       ) {
         if (boundary > previousElapsed) {
-          const phase = getPhase(boundary);
+          const phase = getGuidedPhase(boundary);
           audioRef.current?.playCue(settings, phase);
         }
       }
 
       for (
         let minuteMark = MINUTE_MS;
-        minuteMark <= nextElapsed && minuteMark <= TOTAL_DURATION_MS;
+        minuteMark <= nextElapsed && minuteMark <= GUIDED_DURATION_MS;
         minuteMark += MINUTE_MS
       ) {
         if (minuteMark > previousElapsed) {
-          const minuteNumber = minuteMark / MINUTE_MS;
-          audioRef.current?.playMinute(settings, minuteNumber);
+          audioRef.current?.playMinute(settings, minuteMark / MINUTE_MS);
         }
       }
 
       if (nextElapsed >= TOTAL_DURATION_MS) {
         if (!completionHandledRef.current) {
           completionHandledRef.current = true;
-          audioRef.current?.playEnd(settings, END_TONE_DELAY_AT_COMPLETION_MS);
+          audioRef.current?.playEnd(settings);
         }
         lastElapsedRef.current = TOTAL_DURATION_MS;
         baseElapsedRef.current = TOTAL_DURATION_MS;
@@ -294,25 +308,53 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="hero-card">
-        <p className="eyebrow">EEG Hyperventilation Timer</p>
-        <h1>4-minute breathing guidance with local audio cues</h1>
+        <div className="hero-top">
+          <div>
+            <p className="eyebrow">BDE Protocol</p>
+            <h1>BDE hyperventilation task</h1>
+          </div>
+          <div className={`stage-pill ${isObservation ? 'observation' : ''}`}>
+            {currentStage}
+          </div>
+        </div>
+
         <p className="intro">
-          Alternates every 1.5 seconds between In and Out, marks each minute with
-          repeated beeps, and finishes with a completion tone.
+          Four minutes of guided hyperventilation are followed by two minutes of silent
+          observation before the final completion tone.
         </p>
+
+        <div className="timeline-card">
+          <div className="timeline-row">
+            <div>
+              <span className="timeline-label">Guided breathing</span>
+              <strong>{formatClock(guidedRemainingMs, GUIDED_DURATION_MS, 'ceil')} left</strong>
+            </div>
+            <span className="timeline-tag">0:00-4:00</span>
+          </div>
+          <div className="timeline-row">
+            <div>
+              <span className="timeline-label">Silent observation</span>
+              <strong>4:00-6:00</strong>
+            </div>
+            <span className="timeline-tag muted">No cue beeps</span>
+          </div>
+          <div className="guided-track" aria-hidden="true">
+            <div className="guided-fill" style={{ width: `${guidedPct}%` }} />
+          </div>
+        </div>
 
         <div className="status-grid">
           <div className="status-panel">
             <span>Remaining</span>
-            <strong>{formatClock(remainingMs, 'ceil')}</strong>
+            <strong>{formatClock(remainingMs, TOTAL_DURATION_MS, 'ceil')}</strong>
           </div>
           <div className="status-panel">
             <span>Elapsed</span>
-            <strong>{formatClock(elapsedMs, 'floor')}</strong>
+            <strong>{formatClock(elapsedMs, TOTAL_DURATION_MS, 'floor')}</strong>
           </div>
           <div className="status-panel accent">
-            <span>Current phase</span>
-            <strong>{status === 'complete' ? 'Done' : currentPhase}</strong>
+            <span>Task stage</span>
+            <strong>{currentStage}</strong>
           </div>
         </div>
 
@@ -339,12 +381,12 @@ export default function App() {
       <section className="settings-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Sound Settings</p>
-            <h2>Adjust frequency and volume for each sound</h2>
+            <p className="eyebrow">Tone Controls</p>
+            <h2>Fine-tune the cue profile</h2>
           </div>
           <p className="helper">
-            Volume range is 0.00 to 1.00. Frequencies are in Hz and apply to future
-            cues immediately.
+            Adjust frequency and loudness for breathing cues, minute markers, and the
+            final tone. New values apply immediately to future sounds.
           </p>
         </div>
 
@@ -353,10 +395,13 @@ export default function App() {
             ['inhale', 'In cue'],
             ['exhale', 'Out cue'],
             ['minute', 'Minute beep'],
-            ['end', 'End tone'],
+            ['end', 'Final tone'],
           ].map(([soundKey, label]) => (
             <article className="sound-card" key={soundKey}>
-              <h3>{label}</h3>
+              <div className="sound-card-header">
+                <h3>{label}</h3>
+                <span>{soundKey === 'end' ? '6:00' : soundKey === 'minute' ? '1:00-4:00' : '0:00-4:00'}</span>
+              </div>
               <NumberField
                 label="Frequency"
                 suffix="Hz"
