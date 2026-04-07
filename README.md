@@ -30,15 +30,14 @@ To share the app with colleagues, publish it to a hosted URL. This project is pr
 
 ## GitHub setup
 
-This repo is intended to deploy from the `main` branch.
+This repo is intended to deploy from the `master` branch.
 
 If this is the first push from your machine:
 
 ```bash
-git branch -M main
 git add .
 git commit -m "Initial commit"
-git push -u origin main
+git push -u origin master
 ```
 
 After that, every new change can be shared and deployed with:
@@ -46,7 +45,7 @@ After that, every new change can be shared and deployed with:
 ```bash
 git add .
 git commit -m "Describe the change"
-git push origin main
+git push origin master
 ```
 
 ## Netlify deploy
@@ -57,7 +56,7 @@ git push origin main
 4. Use these settings:
    - Build command: `npm run build`
    - Publish directory: `dist`
-5. Set the production branch to `main`.
+5. Set the production branch to `master`.
 6. Deploy the site.
 
 This repo already includes `netlify.toml`, so Netlify should detect the correct settings automatically.
@@ -68,8 +67,8 @@ Once GitHub and Netlify are connected:
 
 1. Change the code locally.
 2. Test with `npm run dev`.
-3. Push to the `main` branch on GitHub.
-4. Netlify deploys the update automatically from `main`.
+3. Push to the `master` branch on GitHub.
+4. Netlify deploys the update automatically from `master`.
 5. Colleagues keep using the same public URL.
 
 ## Important note for browser audio
